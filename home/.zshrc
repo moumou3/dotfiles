@@ -6,11 +6,13 @@ autoload -Uz add-zsh-hook
 ###########################
 export GEM_HOME="$(/usr/bin/ruby -e 'print Gem.user_dir')"
 export GPG_TTY="$(tty)"
+export USE_POWERLINE=0
 
 typeset -U path
 path=(
-  "$HOME/.local/bin"
+  ~/.local/bin
   $path
+  ~/.cargo/bin
   "$GEM_HOME/bin"
   "$(/usr/bin/python -c 'import site; print(site.getuserbase())')/bin"
   "$(/usr/bin/python3 -c 'import site; print(site.getuserbase())')/bin"
@@ -28,12 +30,14 @@ alias egrep='egrep --color=auto'
 alias ls='ls -F --color=auto'
 alias ll='ls -lh'
 alias la='ls -lAh'
-alias peda='GDB_USE_PEDA=1 GDB_USE_PWNDBG=0 gdb'
-alias pwndbg='GDB_USE_PEDA=0 GDB_USE_PWNDBG=1 gdb'
+alias gef='GDB_USE_GEF=1 GDB_USE_PEDA=0 GDB_USE_PWNDBG=0 gdb'
+alias peda='GDB_USE_GEF=0 GDB_USE_PEDA=1 GDB_USE_PWNDBG=0 gdb'
+alias pwndbg='GDB_USE_GEF=0 GDB_USE_PEDA=0 GDB_USE_PWNDBG=1 gdb'
 alias xmonad-replace='nohup xmonad --replace &> /dev/null &'
 autoload -Uz edit-command-line
 autoload -Uz run-help run-help-git run-help-openssl run-help-sudo
 autoload -Uz zmv
+autoload -Uz fzf-sel fzf-run fzf-loop fzf-gen
 
 #################
 #  Directories  #
@@ -80,7 +84,8 @@ zstyle ':completion:*:*:kill:*:processes' list-colors \
 zstyle ':completion:*:*:*:*:processes' \
   command "ps -u `whoami` -o pid,user,comm -w -w"
 
-autoload -Uz compinit && compinit -i
+# skip the slooow security checks (-C), it's pointless in a single-user setup
+autoload -Uz compinit && compinit -C
 
 #################
 #  Keybindings  #
@@ -92,6 +97,7 @@ autoload -Uz fzf-complete && zle -N fzf-complete
 autoload -Uz fzf-cd-widget && zle -N fzf-cd-widget
 autoload -Uz fzf-file-widget && zle -N fzf-file-widget
 autoload -Uz fzf-history-widget && zle -N fzf-history-widget
+autoload -Uz fzf-snippet-expand && zle -N fzf-snippet-expand
 autoload -Uz surround \
   && zle -N delete-surround surround \
   && zle -N add-surround surround \
@@ -110,6 +116,7 @@ bindkey -v \
   '^U' backward-kill-line \
   '^W' backward-kill-word \
   '^X^F' fzf-file-widget \
+  '^X^J' fzf-snippet-expand \
   '^X^R' fzf-history-widget \
   '^?' backward-delete-char
 bindkey -a \
@@ -118,9 +125,7 @@ bindkey -a \
   'ys' add-surround \
   'K' run-help \
   '^A' incarg \
-  '^X' decarg \
-  '\\/' history-incremental-pattern-search-backward \
-  '\\?' history-incremental-pattern-search-forward
+  '^X' decarg
 bindkey -M visual 'S' add-surround
 bindkey -M menuselect \
   '^B' backward-char \
@@ -141,13 +146,15 @@ setopt no_flowcontrol
 autoload -Uz select-word-style && select-word-style bash
 autoload -Uz url-quote-magic && zle -N self-insert url-quote-magic
 
-[[ -x /usr/bin/lesspipe ]] && eval "$(SHELL=/bin/sh lesspipe)"
+command -v lesspipe >/dev/null 2>&1 && eval "$(SHELL=/bin/sh lesspipe)"
 source /etc/zsh_command_not_found
 
 ###########
 #  Theme  #
 ###########
 setopt prompt_subst
+
+[[ -z "$DISPLAY$WAYLAND_DISPLAY$SSH_CONNECTION" ]] && unset USE_POWERLINE
 
 if [[ "$TERM" == "dumb" ]]; then
   PROMPT="%n: %~%# "
@@ -164,9 +171,9 @@ else
   zstyle ':vcs_info:*' enable git
 
   update_prompt() {
-    prompt_prompt="%(?::%F{red})%#%f"
-    prompt_login="%B%(!:%F{red}:)"
-    prompt_hname=""
+    local prompt_prompt="%(?::%F{red})%#%f"
+    local prompt_login="%B%(!:%F{red}:)"
+    local prompt_hname=""
     if [[ -n "$SSH_CONNECTION" ]]; then
       prompt_login="%B%(!:%F{red}:%F{green})"
       prompt_hname="@%m"
@@ -174,10 +181,10 @@ else
 
     vcs_info
     if [[ -n "$vcs_info_msg_0_" ]]; then
-      PROMPT=$'$prompt_login$vcs_info_msg_0_\n$prompt_prompt%b '
+      PROMPT="$prompt_login$vcs_info_msg_0_"$'\n'"$prompt_prompt%b "
       RPROMPT="$vcs_info_msg_1_"
     else
-      PROMPT=$'$prompt_login%n$prompt_hname%f: %F{blue}%~%f\n$prompt_prompt%b '
+      PROMPT="$prompt_login%n$prompt_hname%f: %F{blue}%~%f"$'\n'"$prompt_prompt%b "
       RPROMPT=""
     fi
   }

@@ -8,13 +8,17 @@ esac
 ###########################
 export GEM_HOME="$(/usr/bin/ruby -e 'print Gem.user_dir')"
 export GPG_TTY="$(tty)"
+export USE_POWERLINE=0
 
-PATH="~/.local/bin:$PATH"
+PATH="$HOME/.local/bin:$PATH"
+PATH+=":$HOME/.cargo/bin"
 PATH+=":$GEM_HOME/bin"
 PATH+=":$(/usr/bin/python -c 'import site; print(site.getuserbase())')/bin"
 PATH+=":$(/usr/bin/python3 -c 'import site; print(site.getuserbase())')/bin"
 PATH+=":$GOPATH/bin"
 export PATH
+
+source ~/.nix-profile/etc/profile.d/nix.sh
 
 ###########################
 #  Aliases and Functions  #
@@ -26,8 +30,9 @@ alias egrep='egrep --color=auto'
 alias ls='ls -F --color=auto'
 alias ll='ls -lh'
 alias la='ls -lAh'
-alias peda='GDB_USE_PEDA=1 GDB_USE_PWNDBG=0 gdb'
-alias pwndbg='GDB_USE_PEDA=0 GDB_USE_PWNDBG=1 gdb'
+alias peda='GDB_USE_GEF=1 GDB_USE_PEDA=0 GDB_USE_PWNDBG=0 gdb'
+alias peda='GDB_USE_GEF=0 GDB_USE_PEDA=1 GDB_USE_PWNDBG=0 gdb'
+alias pwndbg='GDB_USE_GEF=0 GDB_USE_PEDA=0 GDB_USE_PWNDBG=1 gdb'
 alias xmonad-replace='nohup xmonad --replace &> /dev/null &'
 
 #############
@@ -43,6 +48,8 @@ shopt -s histappend
 ###########
 #  Theme  #
 ###########
+[[ -z "$DISPLAY$WAYLAND_DISPLAY$SSH_CONNECTION" ]] && unset USE_POWERLINE
+
 if [[ -z "${debian_root:-}" ]] && [[ -r /etc/debian_chroot ]]; then
   debian_chroot=$(cat /etc/debian_chroot)
 fi
@@ -50,7 +57,7 @@ fi
 if [[ $TERM == "dumb" ]]; then
   PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
 else
-  if [[ -x /usr/bin/dircolors ]]; then
+  if command -v dircolors >/dev/null 2>&1; then
     if [[ -r ~/.dircolors ]]; then
       eval "$(dircolors -b ~/.dircolors)"
     else
@@ -81,7 +88,7 @@ shopt -s checkjobs
 shopt -s checkwinsize
 shopt -s globstar
 
-[[ -x /usr/bin/lesspipe ]] && eval "$(SHELL=/bin/sh lesspipe)"
+command -v lesspipe >/dev/null 2>&1 && eval "$(SHELL=/bin/sh lesspipe)"
 
 if ! shopt -oq posix; then
   if [ -f /usr/share/bash-completion/bash_completion ]; then
@@ -90,6 +97,8 @@ if ! shopt -oq posix; then
     . /etc/bash_completion
   fi
 fi
+
+source ~/.local/opt/fzftools/fzftools.bash
 
 if [[ "$SHELL" != *"zsh" ]] && grep -q zsh /etc/shells; then
   echo "[NOTICE] zsh is available on this system." >&2

@@ -105,6 +105,7 @@ setup::misc() {
   install::default ".screenrc"
   install::default ".tern-config"
   install::default ".tmux.conf"
+  install::default "Library/Preference/com.googlecode.iterm2.plist"
 
   # gtk
   install::default ".gtkrc-2.0"

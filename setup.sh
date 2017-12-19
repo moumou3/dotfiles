@@ -78,6 +78,7 @@ setup::misc() {
   install::default ".config/latexmk/latexmkrc"
   install::default ".config/ranger/rc.conf"
   install::default ".config/ranger/scope.sh"
+  install::default ".config/tig/config"
   install::default ".config/zathura/zathurarc"
   install::default ".gdbinit"
   install::default ".ipython/profile_default/ipython_config.py"
@@ -183,40 +184,6 @@ install::default() {
   fi
 
   ln -s "$(relative_path "$DOTFILE_DIR/home/$1")" .
-  cd "$old_pwd"
-}
-
-# Creates an symlink from $DOTFILE_DIR/home/$path_to_file/$version to
-# ~/$path_to_file
-# Globals:
-#   DOTFILE_DIR
-# Arguments:
-#   path_to_file : file to install
-#   version [default: latest]
-# Returns:
-#   None
-install::versioned() {
-  echo "Installing $1"
-
-  (( "$#" > 2 )) && abort "Wrong number of arguments."
-  [[ "$1" == /* ]] && abort "Cannot use absoulte path."
-
-  local dir="$(dirname "$1")"
-  local fname="$(basename "$1")"
-  local version="latest"
-  [[ -n "$2" ]] && version="$2"
-  [[ ! -e "$DOTFILE_DIR/home/$1/$version" ]] &&
-    abort "$DOTFILE_DIR/home/$1/$version does not exist."
-
-  local old_pwd="$(pwd)"
-  if [[ -n "$dir" ]] && [[ "$dir" != "." ]]; then
-    [[ ! -d ~/"$dir" ]] && mkdir -p ~/"$dir"
-    cd ~/"$dir"
-  else
-    cd
-  fi
-
-  ln -s "$(relative_path "$DOTFILE_DIR/home/$1/$version")" "$fname"
   cd "$old_pwd"
 }
 

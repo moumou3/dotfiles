@@ -1,7 +1,7 @@
 [user]
-	name = midchildan
-	email = midchildan+git@gmail.com
-	signingkey = 0x8660C96E7D48C992
+	name = moumou
+	email = moumou3@users.noreply.github.com
+	signingkey = 0x026965B6CC444EF0
 [push]
 	default = simple
 [merge]

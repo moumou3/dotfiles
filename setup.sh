@@ -4,11 +4,11 @@ DOTFILE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -z "$DOTFILE_DIR" ]] && DOTFILE_DIR=~/.config/dotfiles
 
 main() {
-  local install_plugins=""
+  local install_deps=""
   for n in "$@"; do
     case "$n" in
-      --install-plugins)
-        install_plugins=yes
+      --install-deps)
+        install_deps=yes
         ;;
       *)
         ;;
@@ -26,9 +26,9 @@ main() {
   setup::gpg
   setup::misc
 
-  if [[ -n "$install_plugins" ]]; then
-    echo "$(tput bold)== Installing plugins ==$(tput sgr0)"
-    setup::plugins
+  if [[ -n "$install_deps" ]]; then
+    echo "$(tput bold)== Installing dependencies ==$(tput sgr0)"
+    setup::deps
   fi
 }
 
@@ -45,6 +45,7 @@ setup::shell() {
   install::default ".zlogout"
   install::default ".inputrc"
   install::default ".config/shell/snippets/common.snip"
+  install::default ".config/shell/snippets/linux.snip"
   install::default ".config/shell/templates"
   install::default ".config/shell/templates.csv"
   install::default ".local/share/zsh/site-functions"
@@ -75,18 +76,13 @@ setup::misc() {
   install::default ".clang-format"
   install::default ".config/git/config"
   install::default ".config/git/ignore"
-  install::default ".config/latexmk/latexmkrc"
   install::default ".config/ranger/rc.conf"
   install::default ".config/ranger/scope.sh"
   install::default ".config/tig/config"
   install::default ".config/zathura/zathurarc"
-  install::default ".gdbinit"
   install::default ".ipython/profile_default/ipython_config.py"
   install::default ".local/libexec/fzf/install"
   install::default ".local/opt/fzftools"
-  install::default ".local/opt/gef"
-  install::default ".local/opt/peda"
-  install::default ".local/opt/pwndbg"
   install::default ".mikutter/plugin"
   install::default ".nixpkgs/config.nix"
   install::default ".screenrc"
@@ -94,6 +90,17 @@ setup::misc() {
   install::default ".tmux.conf"
   install::default ".xprofile"
   install::default ".xmonad"
+
+  # gdb
+  install::default ".gdbinit"
+  install::default ".local/bin/gef"
+  install::default ".local/bin/peda"
+  install::default ".local/bin/pwndbg"
+
+  # LaTeX
+  install::default ".config/latexmk/latexmkrc"
+  install::default ".local/bin/platexmk"
+  install::default ".local/bin/uplatexmk"
 
   # spacemacs
   [[ ! -d ~/.emacs.d ]] && git clone https://github.com/syl20bnr/spacemacs ~/.emacs.d
@@ -104,15 +111,17 @@ setup::misc() {
   chmod 700 ~/.config/Code
 }
 
-setup::plugins() {
+setup::deps() {
   sudo apt-get update
   sudo apt-get install -y \
     build-essential \
     cmake \
+    cmigemo \
     npm \
     nodejs \
     zsh-syntax-highlighting
   sudo ln -s /usr/bin/nodejs /usr/local/bin/node
+  curl https://sh.rustup.rs -sSf | sh
 
   vim +PlugInstall +qall
 }
@@ -151,8 +160,8 @@ relative_path() {
       "require 'pathname'; print(Pathname.new('$1').relative_path_from(Pathname.new('$(pwd)')))"
   elif command -v python3 >/dev/null 2>&1; then
     python3 -c "import os; print(os.path.relpath('$1'), end='')"
-  elif command -v python >/dev/null 2>&1; then
-    python -c \
+  elif command -v python2 >/dev/null 2>&1; then
+    python2 -c \
       "from __future__ import print_function; import os; print(os.path.relpath('$1'), end='')"
   else
     abort "Needs coreutils, python, ruby, or perl."

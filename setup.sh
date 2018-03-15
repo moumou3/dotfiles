@@ -4,11 +4,11 @@ DOTFILE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -z "$DOTFILE_DIR" ]] && DOTFILE_DIR=~/Library/dotfiles
 
 main() {
-  local install_plugins=""
+  local install_deps=""
   for n in "$@"; do
     case "$n" in
-      --install-plugins)
-        install_plugins=yes
+      --install-deps)
+        install_deps=yes
         ;;
       *)
         ;;
@@ -26,9 +26,9 @@ main() {
   setup::gpg
   setup::misc
 
-  if [[ -n "$install_plugins" ]]; then
-    echo "$(tput bold)== Installing plugins ==$(tput sgr0)"
-    setup::plugins
+  if [[ -n "$install_deps" ]]; then
+    echo "$(tput bold)== Installing dependencies ==$(tput sgr0)"
+    setup::deps
   fi
 }
 
@@ -43,6 +43,7 @@ setup::shell() {
   install::default ".zshrc"
   install::default ".inputrc"
   install::default ".config/shell/snippets/common.snip"
+  install::default ".config/shell/snippets/macos.snip"
   install::default ".config/shell/templates"
   install::default ".config/shell/templates.csv"
   install::default ".local/share/zsh/site-functions"
@@ -92,7 +93,6 @@ setup::misc() {
   install::default ".clang-format"
   install::default ".config/git/config"
   install::default ".config/git/ignore"
-  install::default ".config/latexmk/latexmkrc"
   install::default ".config/ranger/rc.conf"
   install::default ".config/ranger/scope.sh"
   install::default ".config/tig/config"
@@ -111,6 +111,11 @@ setup::misc() {
   install::default ".gtkrc-2.0"
   install::default ".themes/zuki-themes"
 
+  # LaTeX
+  install::default ".config/latexmk/latexmkrc"
+  install::default ".local/bin/platexmk"
+  install::default ".local/bin/uplatexmk"
+
   # spacemacs
   [[ ! -d ~/.emacs.d ]] && git clone https://github.com/syl20bnr/spacemacs ~/.emacs.d
   install::default ".spacemacs"
@@ -124,9 +129,13 @@ setup::plugins() {
   brew update
   brew install \
     cmake \
+    cmigemo \
+    fzf \
     node \
+    ripgrep \
     zsh-completions \
     zsh-syntax-highlighting
+  curl https://sh.rustup.rs -sSf | sh
 
   vim +PlugInstall +qall
 }
@@ -165,8 +174,8 @@ relative_path() {
       "require 'pathname'; print(Pathname.new('$1').relative_path_from(Pathname.new('$(pwd)')))"
   elif command -v python3 >/dev/null 2>&1; then
     python3 -c "import os; print(os.path.relpath('$1'), end='')"
-  elif command -v python >/dev/null 2>&1; then
-    python -c \
+  elif command -v python2 >/dev/null 2>&1; then
+    python2 -c \
       "from __future__ import print_function; import os; print(os.path.relpath('$1'), end='')"
   else
     abort "Needs coreutils, python, ruby, or perl."

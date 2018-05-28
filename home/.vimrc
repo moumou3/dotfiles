@@ -63,9 +63,12 @@ set fileencodings=ucs-bom,utf-8,iso-2022-jp,euc-jp,cp932,default,latin1
 set fileformats=unix,dos,mac
 set backspace=indent,eol,start
 set expandtab
+set smarttab
 set shiftwidth=2
 set softtabstop=2
 set autoindent
+set copyindent
+set preserveindent
 set formatoptions+=jmB
 
 " jump to the last known cursor position
@@ -73,6 +76,13 @@ au vimrc BufReadPost *
   \ if line("'\"") >= 1 && line("'\"") <= line("$") && &ft !~# 'commit'
   \ |   exe "normal! g`\""
   \ | endif
+
+" enable brackted paste mode
+if !has('nvim') && has('patch-8.0.0238') && $TERM =~? 'screen'
+  let &t_BE = "\<Esc>[?2004h"
+  let &t_BD = "\<Esc>[?2004l"
+  exec "set t_PS=\<ESC>[200~ | set t_PE=\<ESC>[201~"
+endif
 
 """"""""
 "  UI  "
@@ -88,6 +98,8 @@ set display=lastline
 set lazyredraw
 set showmatch
 set wildmenu
+set wildignorecase
+set nofoldenable
 set title
 set mouse=a
 
@@ -96,12 +108,12 @@ if $TERM =~? '.*-256color' && has('termguicolors')
   set cursorline
   set termguicolors
   colorscheme molokai
-  if !has('nvim') && $TERM ==? 'screen-256color'
+  if !has('nvim') && $TERM =~? 'screen'
     let &t_8f = "\<Esc>[38;2;%lu;%lu;%lum"
     let &t_8b = "\<Esc>[48;2;%lu;%lu;%lum"
   endif
 endif
-if has('nvim')
+if exists('+inccommand')
   set inccommand=split
 endif
 
@@ -176,13 +188,16 @@ omap am <Plug>(textobj-sandwich-literal-query-a)
 
 " toggles
 nnoremap <silent> <Leader>tf :NERDTreeToggle<CR>
+nnoremap <silent> <Leader>th :setlocal bufhidden! bufhidden?<CR>
 nnoremap <silent> <Leader>tl :ALEToggle<CR>
 nnoremap <silent> <Leader>ts :setlocal spell! spell?<CR>
 nnoremap <silent> <Leader>tt :TagbarToggle<CR>
 nnoremap <silent> <Leader>tu :UndotreeToggle<CR>
 nnoremap <silent> <Leader>tv :call vimrc#toggle_virtualedit()<CR>
 nnoremap <silent> <Leader>t# :setlocal relativenumber! relativenumber?<CR>
+nnoremap <silent> <Leader>t* :call vimrc#toggle_recursive_path()<CR>
 nnoremap <silent> <Leader>t<Space> :AirlineToggleWhitespace<CR>
+nnoremap <silent> <Leader>t<Tab> :setlocal list! list?<CR>
 
 " FZF mappings
 imap <C-x><C-x><C-f> <Plug>(fzf-complete-path)
@@ -223,6 +238,11 @@ xmap g= <Plug>(EasyAlign)
 " vim-sandwich
 nmap s <Nop>
 xmap s <Nop>
+
+" youcompleteme
+nnoremap <silent> <LocalLeader>K :YcmCompleter GetDoc<CR>
+nnoremap <silent> <LocalLeader>[i :YcmCompleter GetType<CR>
+nnoremap <silent> <LocalLeader><C-]> :YcmCompleter GoTo<CR>
 
 """"""""""
 "  Misc  "
@@ -270,6 +290,7 @@ let g:UltiSnipsExpandTrigger='<C-x><C-j>'
 let g:ycm_key_list_select_completion=[]
 let g:ycm_key_list_previous_completion=[]
 let g:ycm_key_invoke_completion=''
+let g:ycm_extra_conf_vim_data=['&filetype']
 let g:ycm_global_ycm_extra_conf='~/.vim/ycm_extra_conf.py'
 let g:ycm_rust_src_path='~/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/src'
 

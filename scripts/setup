@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 
 DOTFILE_DIR="${DOTFILE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-SKIP_PACKAGES=true
 
 _DOT_LOGFILE="$(mktemp)"
+_DOT_ENABLE_GC=1
+_DOT_GCROOT="$DOTFILE_DIR/.gcroot"
+_DOT_IS_INIT=
 _DOT_LNFLAGS=""
 _DOT_SECTION=
 _DOT_PACKAGE_UPDATED=
@@ -17,6 +19,9 @@ dot::_exit() {
   rm "$_DOT_LOGFILE"
 }
 trap dot::_exit EXIT
+
+# redirect stderr to log file
+exec 2>>"$_DOT_LOGFILE"
 
 ############
 #  syntax  #
@@ -95,6 +100,8 @@ dot::install::task() {
   cd "$old_pwd"
 }
 
+# [DEPRECATED] This function is no longer necessary since the garbage collector
+#   will automatically keep track of symlinks installed by the setup script.
 # Removes ~/$path_to_file if it is a dead symlink
 # Globals:
 #   _DOT_LOGFILE
@@ -109,7 +116,7 @@ dot::clean::task() {
   echo -n "Cleaning $1..."
 
   local filepath=~/"$1"
-  [[ ! -L "$filepath" || -e "$filepath" ]] || rm "$filepath" >>"$_DOT_LOGFILE" 2>&1
+  [[ ! -L "$filepath" || -e "$filepath" ]] || rm "$filepath"
   dot::_print_badge
 }
 
@@ -149,6 +156,22 @@ dot::skip() {
   esac
 }
 
+# Skip section unless --init is specified
+# Globals:
+#   _DOT_SECTION
+#   _DOT_IS_INIT
+# Arguments:
+#   enable : Whether to skip the current section (true/false)
+# Returns:
+#   None
+dot::init() {
+  case "$1" in
+    true|yes|1) [[ -z "$_DOT_IS_INIT" ]] && dot::skip true ;;
+    false|no|0) return ;;
+    *) dot::_abort "Invalid argument: $1" ;;
+  esac
+}
+
 # Change current directory during the scope of the current section
 # Arguments:
 #   path : Path of the target directory
@@ -181,7 +204,9 @@ dot::download() {
   (( $# != 2 )) && dot::_abort "Wrong number of arguments."
 
   local src="$1" dst="$2"
-  curl -fLo "$dst" --create-dirs "$src"
+  echo -n "Downloading $src..."
+  curl -sSfLo "$dst" --create-dirs "$src"
+  dot::_print_badge
 }
 
 # Clone a repository from GitHub
@@ -192,7 +217,34 @@ dot::download() {
 #   None
 dot::github() {
   [[ -d "$2" ]] && return
-  git clone "https://github.com/$1.git" "$2"
+  git clone --quiet "https://github.com/$1.git" "$2"
+  echo "Cloning $1...$(dot::_print_badge)"
+}
+
+# Automatically remove dead symlinks
+# Globals:
+#   _DOT_ENABLE_GC
+# Arguments:
+#   enable: Whether to run the GC (true/false)
+# Returns:
+#   None
+dot::gc() {
+  [[ "$_DOT_SECTION" != "clean" ]] && return
+
+  case "$1" in
+    true|yes|1) [[ -z "$_DOT_ENABLE_GC" ]] && return ;;
+    false|no|0) return ;;
+    *) dot::_abort "Invalid argument: $1" ;;
+  esac
+
+  for root in "$_DOT_GCROOT"/*; do
+    link="$(readlink "$root")"
+    if [[ -L "$link" && ! -e "$link" ]]; then
+      echo -n "Cleaning $link..."
+      rm "$link" "$root"
+      dot::_print_badge
+    fi
+  done
 }
 
 # Run a shell script
@@ -205,9 +257,12 @@ dot::script() {
 
   if [[ "$1" =~ ^https?:// ]]; then
     curl "$1" -sSf | bash
+    ! (( PIPEFAIL[0] | PIPEFAIL[1] ))
   else
     bash "$@"
   fi
+
+  echo "Running $1...$(dot::_print_badge)"
 }
 
 # Run a shell command
@@ -231,11 +286,13 @@ dot::shell() {
 dot::_abort() {
   local message=""
   [[ -n "$1" ]] && message="$1"
-  printf "%s():%s [ABORT] %s\n" "${FUNCNAME[1]}" "${BASH_LINENO[0]}" "$message" >&2
+  printf "%s():%s [ABORT] %s\n" "${FUNCNAME[1]}" "${BASH_LINENO[0]}" "$message"
   exit 1
 }
 
 # Creates an symlink from $src to $dst
+# Globals:
+#   _DOT_ENABLE_GC
 # Arguments:
 #   src : source path
 #   dst : destination path
@@ -246,10 +303,17 @@ dot::_ln() {
   local src="$1"
   local dst="$2"
 
-  # remove dead symlink
-  [[ ! -L "$dst" || -e "$dst" ]] || rm "$dst" >>"$_DOT_LOGFILE" 2>&1
   # install symlink
-  [[ "$dst" -ef "$src" ]] || ln -s"$_DOT_LNFLAGS" "$src" "$dst" >>"$_DOT_LOGFILE" 2>&1
+  if [[ ! "$dst" -ef "$src" ]]; then
+    ln -sn"$_DOT_LNFLAGS" "$src" "$dst" \
+      || return 1
+  fi
+
+  # Mark dst as GC root
+  [[ -z "$_DOT_ENABLE_GC" ]] && return
+  local abs_dst="$(dot::_absolute_path "$dst")"
+  local dst_hash="$(echo "$abs_dst" | shasum -a 256 | cut -d' ' -f1)"
+  ln -snf "$abs_dst" "$_DOT_GCROOT/$dst_hash" || return
 }
 
 # Indicate whether the last command succeeded
@@ -283,6 +347,32 @@ dot::_print_badge::failed() {
   echo "[$(tput setaf 1)FAILED$(tput sgr0)]"
 }
 
+# Prints the absolute path of a given path
+# Arguments:
+#   path
+# Returns:
+#   None
+# Dependencies:
+#   coreutils, python, ruby, or perl
+dot::_absolute_path() {
+  [[ "$#" != 1 ]] && dot::_abort "Wrong number of arguments."
+  if command -v realpath >/dev/null 2>&1; then
+    realpath -s "$1"
+  elif command -v perl >/dev/null 2>&1; then
+    perl -e "use File::Spec; print File::Spec->rel2abs(\$ARGV[0])" "$1"
+  elif command -v ruby >/dev/null 2>&1; then
+    ruby -e \
+      "require 'pathname'; print(Pathname.new(ARGV[0]).expand_path())" "$1"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c "import os,sys; print(os.path.abspath(sys.argv[1]), end='')" "$1"
+  elif command -v python2 >/dev/null 2>&1; then
+    python2 -c \
+      "from __future__ import print_function; import os,sys; print(os.path.abspath(sys.argv[1]), end='')" "$1"
+  else
+    dot::_abort "Needs coreutils, python, ruby, or perl."
+  fi
+}
+
 # Prints the relative path from the current directory to the given path
 # Arguments:
 #   path
@@ -295,18 +385,53 @@ dot::_relative_path() {
   if command -v realpath >/dev/null 2>&1; then
     realpath --no-symlinks --relative-to=. "$1"
   elif command -v perl >/dev/null 2>&1; then
-    perl -e "use File::Spec; print File::Spec->abs2rel('$1')"
+    perl -e "use File::Spec; print File::Spec->abs2rel(\$ARGV[0])" "$1"
   elif command -v ruby >/dev/null 2>&1; then
     ruby -e \
-      "require 'pathname'; print(Pathname.new('$1').relative_path_from(Pathname.new('$(pwd)')))"
+      "require 'pathname'; print(Pathname.new(ARGV[0]).relative_path_from(Pathname.getwd))" "$1"
   elif command -v python3 >/dev/null 2>&1; then
-    python3 -c "import os; print(os.path.relpath('$1'), end='')"
+    python3 -c "import os,sys; print(os.path.relpath(sys.argv[1]), end='')" "$1"
   elif command -v python2 >/dev/null 2>&1; then
     python2 -c \
-      "from __future__ import print_function; import os; print(os.path.relpath('$1'), end='')"
+      "from __future__ import print_function; import os; print(os.path.relpath(sys.argv[1]), end='')" "$1"
   else
     dot::_abort "Needs coreutils, python, ruby, or perl."
   fi
+}
+
+#################
+#  subcommands  #
+#################
+
+dot::_command::uninstall() {
+  for root in "$_DOT_GCROOT"/*; do
+    link="$(readlink "$root")"
+    if [[ -L "$link" ]]; then
+      echo -n "Removing $link..."
+      rm "$link" "$root"
+      dot::_print_badge
+    fi
+  done
+
+  exit
+}
+
+dot::_command::help() {
+cat <<EOF
+usage: $0 [options] [command]
+
+options:
+  -h, --help		Print help message and exit
+      --init		Run tasks marked "init: true"
+  -f, --force		Overwrite existing symlinks
+      --disable-gc	Disable garbage collection
+
+commands:
+  install [default]
+  uninstall
+EOF
+
+exit
 }
 
 ###########################
@@ -315,8 +440,11 @@ dot::_relative_path() {
 
 for n in "$@"; do
   case "$n" in
-    -f) _DOT_LNFLAGS+="f" ;;
-    --install-deps) SKIP_PACKAGES=false ;;
+    -h|--help) dot::_command::help ;;
+    --init) _DOT_IS_INIT=1 ;;
+    -f|--force) _DOT_LNFLAGS+="f" ;;
+    --disable-gc) _DOT_ENABLE_GC= ;;
+    uninstall) dot::_command::uninstall ;;
     *) ;;
   esac
 done

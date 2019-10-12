@@ -1,14 +1,26 @@
 [user]
 	name = moumou
 	email = moumou3@users.noreply.github.com
-	signingkey = 0x026965B6CC444EF0
+	signingkey = 26F62AC3 
 [push]
 	default = simple
 [merge]
 	tool = vimdiff
+[rebase]
+	autosquash = true
 [commit]
 	gpgsign = true
 [alias]
 	exec = "!exec " # run a shell command from the top directory
 [merge "ours"]
 	driver = true
+[protocol "keybase"]
+	allow = always
+[color "diff-highlight"]
+	oldNormal = red bold
+	oldHighlight = red bold 52
+	newNormal = green bold
+	newHighlight = green bold 22
+[ghq]
+	root = ~/Documents/src/repos
+	root = ~/Documents/src/go/src

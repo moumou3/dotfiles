@@ -27,14 +27,34 @@ func! vimrc#fzf_compilers(is_buffer, bang)
   \}, a:bang))
 endf
 
-func! vimrc#toggle_show_whitespace()
+func! vimrc#toggle_whitespace_check()
+  if !exists('g:airline#extensions#whitespace#enabled')
+    let g:airline#extensions#whitespace#enabled = 1
+  endif
+
+  if exists('*airline#extensions#whitespace#toggle')
+    call airline#extensions#whitespace#toggle()
+  else
+    let g:airline#extensions#whitespace#enabled = !g:airline#extensions#whitespace#enabled
+  endif
+
+  if g:airline#extensions#whitespace#enabled
+    hi link WhitespaceError Error
+  else
+    hi link WhitespaceError Whitespace
+  endif
+endf
+
+func! vimrc#toggle_whitespace_visibility()
   if &list
     if exists(':IndentLinesDisable')
       IndentLinesDisable
     endif
     setlocal nolist nocursorcolumn list?
   else
-    IndentLinesEnable
+    if exists(':IndentLinesEnable')
+      IndentLinesEnable
+    endif
     setlocal list cursorcolumn list?
   endif
 endf
@@ -45,6 +65,21 @@ func! vimrc#toggle_recursive_path()
   else
     set path+=** path?
   endif
+endf
+
+func! vimrc#toggle_textwidth()
+  if !exists('s:textwidth')
+    let s:textwidth=80
+  endif
+
+  if &textwidth
+    let s:textwidth = &textwidth
+    let &textwidth = 0
+  else
+    let &textwidth = s:textwidth
+  endif
+
+  set textwidth?
 endf
 
 func! vimrc#toggle_virtualedit()

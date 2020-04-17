@@ -105,3 +105,5 @@ fi
 PS1=$__prompt_title$__prompt_color$__prompt_login
 PS1+='\[\e[0;1m\]:\[\e[34m\]\w\[\e[0;1m\]\$\[\e[0m\] '
 unset __prompt_color __prompt_login __prompt_title
+
+[ -f ~/.fzf.bash ] && source ~/.fzf.bash

@@ -6,17 +6,9 @@ source "$DOTFILE_DIR/scripts/setup"
 # Remove dead symlinks
 @clean
   - gc: true
-  # the rest of this section is kept for backwards compatibility
-  - .gitconfig
-  - .latexmkrc
-  - .vimrc
-  - .gvimrc
-  - .config/shell/common.snip
-  - .mikutter/plugin
-  - .nixpkgs/config.nix
 
-@install Update Submodules
-  - shell: git submodule --quiet update --init --remote
+@shell Update Submodules
+  - git submodule --quiet update --init --remote
 
 @install Install Shell Config
   - .bash_profile
@@ -43,6 +35,7 @@ source "$DOTFILE_DIR/scripts/setup"
   - .config/git/config
   - .config/git/ignore
   - .config/tig/config
+  - .local/bin/git-deploy
   - .local/bin/git-fancy
 
 @install Install GPG Config
@@ -52,6 +45,16 @@ source "$DOTFILE_DIR/scripts/setup"
   - chmod: 600 .gnupg/gpg-agent.conf
   - .gnupg/gpg.conf
   - .gnupg/gpg-agent.conf
+
+@install Install SSH Config
+  - shell: install -d -m 700 ~/.ssh ~/.ssh/sockets
+  - chmod: 700 .ssh
+  - .ssh/config
+  - .ssh/config.d/10-canonicalize.conf
+  - .ssh/config.d/80-git.conf
+  - .ssh/config.d/90-general.conf
+  - .ssh/config.d/90-multiplexing.conf
+  - .local/bin/rcd
 
 @install Install GDB Config
   - .gdbinit
@@ -64,9 +67,11 @@ source "$DOTFILE_DIR/scripts/setup"
   - .local/bin/platexmk
   - .local/bin/uplatexmk
 
-@install Install Spacemacs Config
-  - github: syl20bnr/spacemacs ~/.emacs.d
-  - .spacemacs
+@install Install Emacs Config
+  - github: hlissner/doom-emacs ~/.emacs.d
+  - .config/doom/init.el
+  - .config/doom/config.el
+  - .config/doom/packages.el
 
 @install Install VSCode Config
   - shell: install -d -m 700 ~/.config/Code
@@ -83,6 +88,7 @@ source "$DOTFILE_DIR/scripts/setup"
   - .config/ranger/scope.sh
   - .config/tilix/schemes/gruvbox-dark.json
   - .config/zathura/zathurarc
+  - .docker/config.json
   - .ipython/profile_default/ipython_config.py
   - .local/libexec/fzf/install
   - .local/opt/fzftools
@@ -94,7 +100,8 @@ source "$DOTFILE_DIR/scripts/setup"
   - .xprofile
   - .xmonad
 
-# Will not run unless --init is specified
+# The below will not run unless --init is specified
+
 @packages
   - init: true
   - build-essential
@@ -102,3 +109,8 @@ source "$DOTFILE_DIR/scripts/setup"
   - cmigemo
   - zsh-syntax-highlighting
   - shell: vim +PlugInstall +qall
+  - shell: ~/.emacs.d/bin/doom -y install --no-config
+
+@githooks
+  - init: true
+  - post-receive

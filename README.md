@@ -13,7 +13,7 @@ This script also registers a remote named `upstream` and points it to
 run this script in the `master` branch.
 
 ```console
-$ git clone https://github.com/<your-username>/dotfiles.git ~/Document/dotfiles
+$ git clone https://github.com/${USER}/dotfiles.git ~/Documents/dotfiles
 $ cd ~/Documents/dotfiles
 $ ./scripts/fork.sh
 Enter your name: John Doe
@@ -67,6 +67,10 @@ $ ./setup.sh --init
 |osx    |macOS         |
 |nixos  |NixOS         |
 |centos7|CentOS 7      |
+
+In addition to the platforms listed above, support for one-off remote Linux
+sessions is included in the `gh-pages` branch. See
+[here](https://www.midchildan.org/dotfiles) for details.
 
 Changes common to all platforms should first be made in `master`, and then
 merged into the remaining branches. `master` should never merge changes from

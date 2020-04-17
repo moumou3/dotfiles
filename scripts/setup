@@ -33,6 +33,12 @@ exec 2>>"$_DOT_LOGFILE"
   cd "$DOTFILE_DIR" || dot::_abort "can't enter dir $DOTFILE_DIR"
 }
 
+@shell() {
+  _DOT_SECTION="shell"
+  echo "$(tput bold)== ${*:-Run Shell Commands} ==$(tput sgr0)"
+  cd "$DOTFILE_DIR" || dot::_abort "can't enter dir $DOTFILE_DIR"
+}
+
 @install() {
   _DOT_SECTION="install"
   echo "$(tput bold)== ${*:-Install Files} ==$(tput sgr0)"
@@ -42,6 +48,12 @@ exec 2>>"$_DOT_LOGFILE"
 @clean() {
   _DOT_SECTION="clean"
   echo "$(tput bold)== ${*:-Clean Dead Symlinks} ==$(tput sgr0)"
+  cd "$DOTFILE_DIR" || dot::_abort "can't enter dir $DOTFILE_DIR"
+}
+
+@githooks() {
+  _DOT_SECTION="githooks"
+  echo "$(tput bold)== ${*:-Register Git Hooks} ==$(tput sgr0)"
   cd "$DOTFILE_DIR" || dot::_abort "can't enter dir $DOTFILE_DIR"
 }
 
@@ -55,8 +67,10 @@ exec 2>>"$_DOT_LOGFILE"
 
   case "$_DOT_SECTION" in
     packages) dot::packages::task "$@" ;;
+    shell) dot::shell::task "$@" ;;
     install) dot::install::task "$@" ;;
     clean) dot::clean::task "$@" ;;
+    githooks) dot::githooks::task "$@" ;;
   esac
 }
 
@@ -67,7 +81,6 @@ exec 2>>"$_DOT_LOGFILE"
 # Creates an symlink from $DOTFILE_DIR/home/$path_to_file to ~/$path_to_file
 # Globals:
 #   DOTFILE_DIR
-#   _DOT_LOGFILE
 # Arguments:
 #   path_to_file : file to install
 # Returns:
@@ -78,18 +91,17 @@ dot::install::task() {
 
   echo -n "Installing $1..."
   if [[ ! -e "$DOTFILE_DIR/home/$1" ]]; then
-    echo "$DOTFILE_DIR/home/$1 does not exist" >>"$_DOT_LOGFILE"
+    echo "$DOTFILE_DIR/home/$1 does not exist" >&2
     dot::_print_badge::failed
     return
   fi
 
   local dir="$(dirname "$1")"
-  local old_pwd="$(pwd)"
   if [[ -n "$dir" ]] && [[ "$dir" != "." ]]; then
     [[ ! -d ~/"$dir" ]] && mkdir -p ~/"$dir"
-    cd ~/"$dir"
+    pushd ~/"$dir"
   else
-    cd
+    pushd ~
   fi
 
   local fname="$(basename "$1")"
@@ -97,14 +109,23 @@ dot::install::task() {
   dot::_ln "$(dot::_relative_path "$src")" "$fname"
   dot::_print_badge
 
-  cd "$old_pwd"
+  popd
+}
+
+# Run a shell command
+# Globals:
+#   DOTFILE_DIR
+# Arguments:
+#   path_to_file : file to install
+# Returns:
+#   None
+dot::shell::task() {
+  dot::shell "$@"
 }
 
 # [DEPRECATED] This function is no longer necessary since the garbage collector
 #   will automatically keep track of symlinks installed by the setup script.
 # Removes ~/$path_to_file if it is a dead symlink
-# Globals:
-#   _DOT_LOGFILE
 # Arguments:
 #   path_to_file : file to clean
 # Returns:
@@ -117,6 +138,39 @@ dot::clean::task() {
 
   local filepath=~/"$1"
   [[ ! -L "$filepath" || -e "$filepath" ]] || rm "$filepath"
+  dot::_print_badge
+}
+
+# Symlinks $DOTFILE_DIR/scripts/githooks/$hook into $GIT_DIR/hook
+# Globals:
+#   DOTFILE_DIR
+# Arguments:
+#   hook : hook to install
+# Returns:
+#   None
+dot::githooks::task() {
+  [[ "$#" != 1 ]] && dot::_abort "Wrong number of arguments."
+  [[ "$1" == /* ]] && dot::_abort "Cannot use absoulte path."
+
+  echo -n "Registering $1 hook..."
+  local hook="$1"
+  local src="$DOTFILE_DIR/scripts/githooks/$hook"
+
+  if [[ ! -e "$src" ]]; then
+    echo "$src does not exist" >&2
+    dot::_print_badge::failed
+    return
+  fi
+  if [[ ! -d .git/hooks ]]; then
+    echo "$DOTFILE_DIR/.git/hooks is not a directory" >&2
+    dot::_print_badge::failed
+    return
+  fi
+
+  pushd .git/hooks
+  dot::_ln "$(dot::_relative_path "$src")" "$hook"
+  popd
+
   dot::_print_badge
 }
 
@@ -243,6 +297,10 @@ dot::gc() {
       echo -n "Cleaning $link..."
       rm "$link" "$root"
       dot::_print_badge
+    elif [[ ! -e "$root" ]]; then
+      echo -n "Cleaning GC root for $link..."
+      rm "$root"
+      dot::_print_badge
     fi
   done
 }
@@ -271,7 +329,9 @@ dot::script() {
 # Returns:
 #   None
 dot::shell() {
-  "$@"
+  echo -n "Running $@..."
+  "$@" >&2
+  dot::_print_badge
 }
 
 #############
@@ -312,8 +372,8 @@ dot::_ln() {
   # Mark dst as GC root
   [[ -z "$_DOT_ENABLE_GC" ]] && return
   local abs_dst="$(dot::_absolute_path "$dst")"
-  local dst_hash="$(echo "$abs_dst" | shasum -a 256 | cut -d' ' -f1)"
-  ln -snf "$abs_dst" "$_DOT_GCROOT/$dst_hash" || return
+  local dst_hash="$(echo "$abs_dst" | sha256sum | cut -d' ' -f1)"
+  ln -snf "$abs_dst" "$_DOT_GCROOT/$dst_hash" || :
 }
 
 # Indicate whether the last command succeeded
@@ -397,6 +457,43 @@ dot::_relative_path() {
   else
     dot::_abort "Needs coreutils, python, ruby, or perl."
   fi
+}
+
+# Wrapper for pushd
+# Returns:
+#   None
+pushd() {
+  builtin pushd "$@" > /dev/null
+}
+
+# Wrapper for popd
+# Returns:
+#   None
+popd() {
+  builtin popd "$@" > /dev/null
+}
+
+# Wrapper for sha256sum
+# Returns:
+#   None
+sha256sum() {
+  if command -v sha256sum > /dev/null 2>&1; then
+    command sha256sum "$@"
+  elif command -v shasum > /dev/null 2>&1; then
+    command shasum -a 256 "$@"
+  else
+    echo "[ERROR] sha256sum or shasum needs to be installed" >&2
+  fi
+}
+
+# Wrapper for tput
+# Returns:
+#   None
+tput() {
+  case "$TERM" in
+    ""|dumb) return ;;
+    *) command tput "$@" ;;
+  esac
 }
 
 #################

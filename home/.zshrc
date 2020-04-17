@@ -2,11 +2,13 @@ fpath+=(~/.local/share/zsh/site-functions)
 autoload -Uz add-zsh-hook
 autoload -Uz is-at-least
 
+[[ -d ~/.cache/zsh/completion ]] || mkdir -p ~/.cache/zsh/completion
+
 ###########################
 #  Environment Variables  #
 ###########################
 export GEM_HOME="$(ruby -e 'print Gem.user_dir')"
-export GPG_TTY="$(tty)"
+export GPG_TTY="$TTY"
 
 typeset -U path
 path=(
@@ -29,9 +31,8 @@ alias ll='ls -lh'
 alias la='ls -lAh'
 alias xmonad-replace='nohup xmonad --replace &> /dev/null &'
 autoload -Uz zmv
-autoload -Uz cud fuck
+autoload -Uz br cud fuck
 autoload -Uz fzf-sel fzf-run fzf-loop fzf-gen
-command -v hub > /dev/null 2>&1 && alias git='hub'
 
 #################
 #  Directories  #
@@ -45,6 +46,7 @@ autoload -Uz chpwd_recent_dirs cdr
 chpwd_functions=(chpwd_recent_dirs)
 zstyle ':chpwd:*' recent-dirs-default true
 zstyle ':chpwd:*' recent-dirs-max 500
+zstyle ':chpwd:*' recent-dirs-file ~/.cache/zsh/cdhistory
 
 #############
 #  History  #
@@ -71,33 +73,37 @@ setopt menu_complete
 setopt list_packed
 zmodload -i zsh/complist
 
-# case-insensitive (all),partial-word and then substring completion
-zstyle ':completion:*' matcher-list \
-  'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*' 'l:|=* r:|=*'
-
-zstyle ':completion:*' list-colors ''
-zstyle ':completion:*' menu select
-zstyle ':completion::complete:*' use-cache 1
-zstyle ':completion:*' recent-dirs-insert fallback
-zstyle ':completion:*:functions' ignored-patterns '_*'
-zstyle ':completion:*:manuals' separate-sections true
-zstyle ':completion:*:manuals.*' insert-sections true
-zstyle ':completion:*:*:kill:*:processes' list-colors \
-  '=(#b) #([0-9]#) ([0-9a-z-]#)*=01;34=0=01'
-zstyle ':completion:*:*:*:*:processes' \
-  command "ps -u `whoami` -o pid,user,comm -w -w"
-
 () {
   setopt localoptions extended_glob
   autoload -Uz compinit
 
+  zstyle ':completion:*' menu select
+  zstyle ':completion:*' use-cache true
+  zstyle ':completion:*' cache-path ~/.cache/zsh/completion
+  zstyle ':completion:*' list-colors ''
+  zstyle ':completion:*' recent-dirs-insert fallback
+  # case-insensitive (all),partial-word and then substring completion
+  zstyle ':completion:*' matcher-list \
+    'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*' 'l:|=* r:|=*'
+
+  zstyle ':completion:*:functions' ignored-patterns '(_*|prompt_*)'
+  zstyle ':completion:*:manuals' separate-sections true
+  zstyle ':completion:*:manuals.(^1*)' insert-sections true
+  zstyle ':completion:*:*:kill:*:processes' list-colors \
+    '=(#b) #([0-9]#) ([0-9a-z-]#)*=01;34=0=01'
+  zstyle ':completion:*:*:*:*:processes' \
+    command "ps -u $USER -o pid,user,comm -w -w"
+  zstyle ':completion:*:*:*:users' ignored-patterns '_*'
+
   # update the completion cache only once a day
-  if [[ -n ~/.zcompdump(#qN.m+1) ]]; then
+  if [[ -n ~/.cache/zsh/compdump(#qN.m+1) ]]; then
     # XXX: ignore compaudit warnings b/c it's pointless for most people
-    compinit -u && touch ~/.zcompdump
+    compinit -u -d ~/.cache/zsh/compdump && touch ~/.cache/zsh/compdump
   else
-    compinit -C # skip compaudit b/c it's slow
+    compinit -C -d ~/.cache/zsh/compdump # skip compaudit b/c it's slow
   fi
+
+  compdef rcd=ssh
 }
 
 # define a completion widget that parses --help output
@@ -113,13 +119,14 @@ autoload -Uz select-bracketed && zle -N select-bracketed
 autoload -Uz select-quoted && zle -N select-quoted
 autoload -Uz smart-insert-last-word && zle -N smart-insert-last-word
 autoload -Uz vim-pipe && zle -N vim-pipe
-autoload -Uz fzf-complete && zle -N fzf-complete
+autoload -Uz fzf-completion && zle -N fzf-completion
 autoload -Uz fzf-cd-widget && zle -N fzf-cd-widget
 autoload -Uz fzf-cdr-widget && zle -N fzf-cdr-widget
 autoload -Uz fzf-file-widget && zle -N fzf-file-widget
 autoload -Uz fzf-history-widget && zle -N fzf-history-widget
 autoload -Uz fzf-snippet-expand && zle -N fzf-snippet-expand
 autoload -Uz fzf-snippet-next && zle -N fzf-snippet-next
+autoload -Uz toggle-leading-space && zle -N toggle-leading-space
 autoload -Uz surround \
   && zle -N delete-surround surround \
   && zle -N add-surround surround \
@@ -138,19 +145,22 @@ bindkey -rv '^[,' '^[/' '^[~'
 bindkey -v \
   '^A' smart-insert-last-word \
   '^B' copy-earlier-word \
+  '^E' history-incremental-search-forward \
   '^Gu' split-undo \
   '^H' backward-delete-char \
-  '^I' fzf-complete \
+  '^I' fzf-completion \
   '^J' fzf-snippet-next \
   '^N' history-beginning-search-forward \
   '^O' fzf-cdr-widget \
   '^P' history-beginning-search-backward \
+  '^T' toggle-leading-space \
   '^U' backward-kill-line \
   '^W' backward-kill-word \
   '^X^F' fzf-file-widget \
   '^X^J' fzf-snippet-expand \
   '^X^O' complete-from-help \
   '^X^R' fzf-history-widget \
+  '^Y' history-incremental-search-backward \
   '^?' backward-delete-char
 bindkey -ra 's'
 bindkey -a \
@@ -167,23 +177,26 @@ bindkey -a \
   '!' vim-pipe
 bindkey -M menuselect \
   '^B' backward-char \
+  '^E' undo \
   '^F' forward-char \
   '^J' accept-and-menu-complete \
   '^N' down-line-or-history \
   '^P' up-line-or-history \
-  '^U' undo \
   '^X^F' accept-and-infer-next-history \
-  '^X^X' vi-insert
+  '^X^X' vi-insert \
+  '^Y' accept-line
 
-local _mode _char
-for _mode in visual viopp; do
-  for _char in {a,i}${(s..)^:-'()[]{}<>bB'}; do
-    bindkey -M $_mode $_char select-bracketed
+() {
+  local mode key
+  for mode in visual viopp; do
+    for key in {a,i}${(s..)^:-'()[]{}<>bB'}; do
+      bindkey -M $mode $key select-bracketed
+    done
+    for key in {a,i}{\',\",\`}; do
+      bindkey -M $mode $key select-quoted
+    done
   done
-  for _char in {a,i}{\',\",\`}; do
-    bindkey -M $_mode $_char select-quoted
-  done
-done
+}
 
 ######################
 #  Terminal Support  #
@@ -201,7 +214,7 @@ __term_support() {
     setopt localoptions extended_glob no_multibyte
     local match mbegin mend
     local pattern="[^A-Za-z0-9_.!~*\'\(\)-\/]"
-    local unsafepwd=( ${(s::)PWD} )
+    local unsafepwd; unsafepwd=( ${(s::)PWD} )
 
     # url encode
     printf "\e]7;file://%s%s\a" \
@@ -232,6 +245,9 @@ case "$TERM" in
     add-zsh-hook preexec __reset_cursor
     add-zsh-hook precmd __term_support
     ;;
+  eterm*)
+    zstyle ':iterm2:osc' enable false
+    ;;
 esac
 
 ##########
@@ -242,7 +258,8 @@ setopt long_list_jobs
 setopt no_clobber
 setopt no_flowcontrol
 autoload -Uz select-word-style && select-word-style bash
-autoload -Uz zrecompile && zrecompile -pq -R ~/.zshrc -- -M ~/.zcompdump &!
+autoload -Uz zrecompile && \
+  zrecompile -pq -R ~/.zshrc -- -M ~/.cache/zsh/compdump &!
 autoload -Uz url-quote-magic && zle -N self-insert url-quote-magic
 if is-at-least 5.2; then
   autoload -Uz bracketed-paste-url-magic && \
@@ -256,9 +273,10 @@ source /etc/zsh_command_not_found
 #  Theme  #
 ###########
 if [[ "$TERM" == "dumb" ]]; then
+  unsetopt zle prompt_cr prompt_subst
+  add-zsh-hook -d precmd
+  add-zsh-hook -d preexec
   PROMPT="%n: %~%# "
-  unset zle_bracketed_paste
-  bindkey -v '^J' accept-line
   return
 fi
 

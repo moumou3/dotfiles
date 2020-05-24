@@ -1,7 +1,7 @@
 [user]
-	name = moumou
+	name = moumou3
 	email = moumou3@users.noreply.github.com
-	signingkey = 945C4262 
+	signingkey = 945C4262
 [push]
 	default = simple
 [merge]

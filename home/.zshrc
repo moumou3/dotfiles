@@ -289,4 +289,3 @@ prompt concise
 source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 ZSH_HIGHLIGHT_HIGHLIGHTERS+=(brackets)
 
-[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh

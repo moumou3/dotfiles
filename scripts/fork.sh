@@ -40,10 +40,10 @@ patch::git() {
 
 patch::gpg() {
   if [[ -n "$GPGKEYID" ]]; then
-    sed -i '' -e "s/^default-key.*/default-key $GPGKEYID" \
+    sed -i  -e "s/^default-key.*/default-key $GPGKEYID/" \
       "$DOTFILE_DIR/home/.gnupg/gpg.conf"
   else
-    sed -i '' -e '/^default-key/d' -e '/./,$!d' \
+    sed -i  -e '/^default-key/d' -e '/./,$!d' \
       "$DOTFILE_DIR/home/.gnupg/gpg.conf"
   fi
 }

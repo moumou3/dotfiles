@@ -68,6 +68,8 @@ $ ./setup.sh --init
 |nixos  |NixOS         |
 |centos7|CentOS 7      |
 
+Memo:In WSL, fzf does not work with the error message.  It says that "job table full or too many recursions"
+
 In addition to the platforms listed above, support for one-off remote Linux
 sessions is included in the `gh-pages` branch. See
 [here](https://www.midchildan.org/dotfiles) for details.
